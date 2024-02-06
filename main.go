@@ -1,39 +1,24 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
-	"gorm.io/driver/postgres"
-  	"gorm.io/gorm"
+
+	"github.com/arthurqueiroz4/rinha-go/config"
 )
 
-func main(){
-	db := connectDB()
+func main() {
+	log.Println("Starting the application...")
+	env := &config.Env{}
+	env.LoadEnv()
+	env.ConnectDB()
+	defer env.CloseDB()
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World"))
 	})
 
-	log.Println("Server started on: http://localhost:8080")
-	http.ListenAndServe(":8080", nil)
-
-}
-
-func connectDB() *gorm.DB {
-	dsn := "
-		host=localhost
-		user=postgres
-		password=postgres
-		dbname=postgres
-		port=5432
-		sslmode=disable
-	"
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		SkipDefaultTransaction: true,
-		PrepareStmt: true,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	return db
+	log.Printf("Server started on: http://localhost:%s", env.AppPort)
+	http.ListenAndServe(fmt.Sprintf(":%s", env.AppPort), nil)
 }
