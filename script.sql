@@ -1,11 +1,19 @@
--- Coloque scripts iniciais aqui
 CREATE TABLE clientes (
   id SERIAL PRIMARY KEY,
-  nome VARCHAR(255) NOT NULL,
-  limite INTEGER NOT NULL
+  limite INTEGER NOT NULL,
+  saldo INTEGER NOT NULL
 );
 
+CREATE TABLE transacao (
+  id SERIAL PRIMARY KEY,
+  cliente_id INTEGER NOT NULL,
+  tipo VARCHAR(1) NOT NULL,
+  valor INTEGER NOT NULL,
+  descricao VARCHAR(10) NOT NULL,
+  realizado TIMESTAMP NOT NULL DEFALT NOW()
+);
 
+CREATE INDEX idx_extrato ON transacoes (id DESC);
 
 DO $$
 BEGIN
