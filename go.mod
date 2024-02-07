@@ -3,6 +3,7 @@ module github.com/arthurqueiroz4/rinha-go
 go 1.21.7
 
 require (
+	github.com/go-chi/chi/v5 v5.0.11
 	github.com/spf13/viper v1.18.2
 	gorm.io/driver/postgres v1.5.6
 	gorm.io/gorm v1.25.7
