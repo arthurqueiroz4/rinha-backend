@@ -1,16 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
-	"log"
-	"net/http"
-	"strconv"
-
+	"fmt"
 	"github.com/arthurqueiroz4/rinha-go/config"
 	"github.com/arthurqueiroz4/rinha-go/dto"
 	"github.com/arthurqueiroz4/rinha-go/model"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"log"
+	"net/http"
+	"strconv"
 )
 
 func main() {
@@ -24,6 +25,11 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Post("/clientes/{id}/transacoes", func(w http.ResponseWriter, r *http.Request) {
 		id := chi.URLParam(r, "id")
+		if idInt, _ := strconv.Atoi(id); idInt > 5 {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
 		var transacaoDTO dto.TransacaoDTO
 
 		err := json.NewDecoder(r.Body).Decode(&transacaoDTO)
@@ -43,17 +49,18 @@ func main() {
 			return
 		}
 
-		if idInt, _ := strconv.Atoi(id); idInt > 5 {
-			w.WriteHeader(http.StatusNotFound)
+		var cliente model.Cliente
+		err = db.QueryRow(context.Background(), "SELECT c.id, c.saldo, c.limite FROM clientes c WHERE id = $1", id).Scan(&cliente.ID, &cliente.Saldo, &cliente.Limite)
+		if err != nil {
+			fmt.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 
-		var cliente model.Cliente
-		db.Raw("SELECT * FROM clientes c WHERE c.id = ?", id).Scan(&cliente)
-
-		if cliente.ID == 0 {
-			w.WriteHeader(http.StatusNotFound)
-			return
+		if transacaoDTO.Tipo == "d" {
+			cliente.Saldo -= transacaoDTO.Valor
+		} else {
+			cliente.Saldo += transacaoDTO.Valor
 		}
 
 		abs := func(i int) int {
@@ -62,27 +69,54 @@ func main() {
 			}
 			return i
 		}
-		if ((abs(cliente.Saldo)) + transacaoDTO.Valor) > cliente.Limite {
+
+		if abs(cliente.Saldo) > cliente.Limite {
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			return
 		}
 
-		if err := db.Raw("INSERT INTO transacoes (valor, tipo, descricao, cliente_id) VALUES (?, ?, ?, ?)",
-			transacaoDTO.Valor, transacaoDTO.Tipo, transacaoDTO.Descricao, cliente.ID).Error; err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		log.Println("Transação registrada com sucesso...")
-		if err := db.Raw("UPDATE clientes SET saldo = saldo - ? WHERE id = ?", transacaoDTO.Valor, cliente.ID).Error; err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
+		db.QueryRow(context.Background(), "INSERT INTO transacoes (valor, tipo, descricao, cliente_id) VALUES ($1, $2, $3, $4)",
+			transacaoDTO.Valor, transacaoDTO.Tipo, transacaoDTO.Descricao, cliente.ID)
+		db.QueryRow(context.Background(), "UPDATE clientes SET saldo = $1 WHERE id = $2", cliente.Saldo, cliente.ID)
+
 		log.Println("Transação realizada com sucesso...")
-		w.WriteHeader(http.StatusCreated)
+		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"limite": cliente.Limite,
-			"saldo":  cliente.Saldo - transacaoDTO.Valor,
+			"saldo":  cliente.Saldo,
 		})
+	})
+
+	r.Get("/clientes/{id}/extrato", func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		if idInt, _ := strconv.Atoi(id); idInt > 5 {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		rows, _ := db.Query(context.Background(), "SELECT * FROM transacoes t WHERE cliente_id = $1", id)
+		defer rows.Close()
+
+		var transacoes []model.Transacao
+		for rows.Next() {
+			var transacao model.Transacao
+			err := rows.Scan(&transacao.ID, &transacao.ClienteID, &transacao.Tipo, &transacao.Valor, &transacao.Realizado)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			transacoes = append(transacoes, transacao)
+		}
+
+		if err := rows.Err(); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		var cliente model.Cliente
+		db.QueryRow(context.Background(), "SELECT saldo FROM clientes WHERE id = $1", id).Scan(&cliente)
+
+		w.WriteHeader(http.StatusOK)
 	})
 	http.ListenAndServe(env.AppPort, r)
 }

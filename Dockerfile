@@ -6,7 +6,7 @@ COPY . .
 
 RUN go mod tidy
 
-RUN go build .
+RUN go build -o rinha-golang
 
 EXPOSE 8080
 
