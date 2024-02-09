@@ -3,26 +3,27 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/labstack/echo"
 	"net/http"
 	"os"
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/labstack/echo"
 )
 
 var (
-	dbPool   *pgxpool.Pool
-	cache    map[string]Extrato
-	cacheMux sync.Mutex
+	dbPool        *pgxpool.Pool
+	cache         map[string]Extrato
+	cacheMux      sync.Mutex
+	cacheClientes map[string]Cliente
 )
 
 func main() {
 	var err error
 	databaseUrl := "postgres://postgres:postgres@db:5432/rinha"
-	dbPool, err = pgxpool.Connect(context.Background(), databaseUrl)
+	dbPool, err = pgxpool.New(context.Background(), databaseUrl)
 	if err != nil {
 		fmt.Println("Unable to connect to database: %v\n", err)
 		os.Exit(1)
@@ -44,10 +45,10 @@ func main() {
 
 type Transacao struct {
 	ID        int       `json:"id"`
-	Valor     int       `json:"valor"`
-	Tipo      string    `json:"tipo"`
-	Descricao string    `json:"descricao"`
 	ClienteID int       `json:"cliente_id"`
+	Tipo      string    `json:"tipo"`
+	Valor     int       `json:"valor"`
+	Descricao string    `json:"descricao"`
 	Realizado time.Time `json:"realizada_em"`
 }
 
@@ -76,7 +77,7 @@ func criarTransacao(c echo.Context) error {
 
 	transacao := new(Transacao)
 	if err := c.Bind(transacao); err != nil {
-		return err
+		return c.JSON(http.StatusUnprocessableEntity, nil)
 	}
 
 	if transacao.Tipo != "d" && transacao.Tipo != "c" {
@@ -91,23 +92,45 @@ func criarTransacao(c echo.Context) error {
 	cliente := new(Cliente)
 	err := dbPool.QueryRow(context.Background(), "SELECT * FROM clientes c WHERE id = $1", id).Scan(&cliente.ID, &cliente.Limite, &cliente.Saldo)
 
+	var novoSaldo int
 	if transacao.Tipo == "d" {
 		if (cliente.Saldo - transacao.Valor) < -cliente.Limite {
 			return c.JSON(http.StatusUnprocessableEntity, nil)
 		}
-	}
-
-	_, err = dbPool.Exec(context.Background(), "INSERT INTO transacoes (valor, tipo, descricao, cliente_id, realizado) VALUES ($1, $2, $3, $4, $5)",
-		transacao.Valor, transacao.Tipo, transacao.Descricao, id, time.Now())
-
-	var novoSaldo int
-	if transacao.Tipo == "d" {
 		novoSaldo = cliente.Saldo - transacao.Valor
 	} else {
 		novoSaldo = cliente.Saldo + transacao.Valor
 	}
 
-	_, err = dbPool.Exec(context.Background(), "UPDATE clientes SET saldo = $1 WHERE id = $2", novoSaldo, id)
+	tx, err := dbPool.Begin(context.Background())
+	defer tx.Rollback(context.Background())
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, nil)
+	}
+
+	batch := &pgx.Batch{}
+	batch.Queue("INSERT INTO transacoes (valor, tipo, descricao, cliente_id, realizado) VALUES ($1, $2, $3, $4, $5)",
+		transacao.Valor, transacao.Tipo, transacao.Descricao, id, time.Now())
+	batch.Queue("UPDATE clientes SET saldo = $1 WHERE id = $2", novoSaldo, id)
+
+	//cacheMux.Lock()
+	//delete(cache, id)
+	//cacheMux.Unlock()
+
+	br := tx.SendBatch(context.Background(), batch)
+	_, err = br.Exec()
+
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, nil)
+	}
+
+	err = br.Close()
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, nil)
+	}
+
+	err = tx.Commit(context.Background())
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, nil)
 	}
@@ -116,11 +139,6 @@ func criarTransacao(c echo.Context) error {
 		"limite": cliente.Limite,
 		"saldo":  novoSaldo,
 	}
-
-	cacheMux.Lock()
-	delete(cache, id)
-	cacheMux.Unlock()
-
 	return c.JSON(http.StatusOK, responseJSON)
 }
 
@@ -130,31 +148,22 @@ func pegarExtrato(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, nil)
 	}
 
-	cacheMux.Lock()
-	cachedExtrato, found := cache[id]
-	cacheMux.Unlock()
-	if found {
-		return c.JSON(http.StatusOK, cachedExtrato)
-	}
+	//cacheMux.Lock()
+	//cachedExtrato, found := cache[id]
+	//cacheMux.Unlock()
+	//if found {
+	//	return c.JSON(http.StatusOK, cachedExtrato)
+	//}
 
-	querySelectTransacoes, _ := dbPool.Query(context.Background(), "SELECT * FROM transacoes t WHERE cliente_id = $1 ORDER BY t.realizado DESC LIMIT 10", id)
-
-	defer querySelectTransacoes.Close()
-
-	transacoes := make([]Transacao, 0)
-	for querySelectTransacoes.Next() {
-		transacao := Transacao{}
-		querySelectTransacoes.Scan(&transacao.ID, &transacao.ClienteID, &transacao.Tipo, &transacao.Valor, &transacao.Descricao, &transacao.Realizado)
-		transacoes = append(transacoes, transacao)
+	rows, _ := dbPool.Query(context.Background(), "SELECT * FROM transacoes t WHERE cliente_id = $1 ORDER BY t.id DESC LIMIT 10", id)
+	ultimasTransacoes, err := pgx.CollectRows(rows, pgx.RowToStructByPos[Transacao])
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, nil)
 	}
 
 	cliente := new(Cliente)
-	dbPool.QueryRow(context.Background(), "SELECT c.id, c.saldo, c.limite FROM clientes c WHERE id = $1", id).Scan(&cliente.ID, &cliente.Saldo, &cliente.Limite)
-
 	var dataExtrato time.Time
-	if len(transacoes) > 0 {
-		dataExtrato = transacoes[0].Realizado
-	}
+	dbPool.QueryRow(context.Background(), "SELECT c.id, c.saldo, c.limite, now() FROM clientes c WHERE id = $1", id).Scan(&cliente.ID, &cliente.Saldo, &cliente.Limite, &dataExtrato)
 
 	extrato := Extrato{
 		Saldo: Saldo{
@@ -162,12 +171,12 @@ func pegarExtrato(c echo.Context) error {
 			DataExtrato: dataExtrato,
 			Limite:      cliente.Limite,
 		},
-		UltimasTransacoes: transacoes,
+		UltimasTransacoes: ultimasTransacoes,
 	}
 
-	cacheMux.Lock()
-	cache[id] = extrato
-	cacheMux.Unlock()
+	//cacheMux.Lock()
+	//cache[id] = extrato
+	//cacheMux.Unlock()
 
 	return c.JSON(http.StatusOK, extrato)
 }

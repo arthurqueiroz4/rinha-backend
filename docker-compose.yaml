@@ -21,8 +21,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.6"
-          memory: "200MB"
+          cpus: "0.15"
+          memory: "100MB"
 
   api02:
     # Essa sintaxe reusa o que foi declarado em 'api01'.
@@ -48,8 +48,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.17"
-          memory: "10MB"
+          cpus: '0.2'
+          memory: '50MB'
 
   db:
     image: postgres:latest
@@ -62,28 +62,19 @@ services:
       - "5432:5432"
     volumes:
       - ./script.sql:/docker-entrypoint-initdb.d/script.sql
+      - ./postgresql.conf:/docker-entrypoint-initdb.d/postgresql.conf
     deploy:
       resources:
         limits:
-          # Note que a soma de todos os limites dos serviços
-          # aqui declarados é de 1.5 unidades de CPU e 550MB
-          # de memória. A distribuição feita aqui é apenas
-          # um exemplo – distribua como quiser.
-          cpus: "0.13"
-          memory: "140MB"
+          cpus: '1'
+          memory: "300MB"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-# O uso do modo `bridge` deve ser adequado à carga que será usada no teste.
-# A edição anterior se beneficiou do modo host pois o volume de requisições
-# era relativamente alto e a virtualização da rede se tornou um gargalo, mas
-# este modo é mais complexo de ser configurado. Fique à vontade para usar o
-# modo que quiser desde que não conflite com portas trivialmente usadas em um
-# SO.
 networks:
   default:
     driver: bridge
-    name: rinha-nginx-2024q1
+    name: rinha-network
