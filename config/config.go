@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
 
@@ -35,8 +36,7 @@ func (e *Env) LoadEnv() {
 }
 
 func (e *Env) ConnectDB() {
-
-	conn, err := pgxpool.New(context.Background(), "postgres://postgres:postgres@localhost:5432/rinha")
+	conn, err := pgxpool.New(context.Background(), fmt.Sprintf("postgres://postgres:postgres@%s:5432/rinha", e.DbHost))
 	if err != nil {
 		log.Fatal(err)
 	}

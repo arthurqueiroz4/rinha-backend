@@ -16,7 +16,8 @@ services:
       - DB_HOST=db
       - APP_PORT=:8080
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -31,7 +32,8 @@ services:
       - "8082:8080"
     environment:
       - DB_HOST=db
-      - APP_PORT=:8081
+      - APP_PORT=:8080
+
  
   nginx:
     image: nginx:latest
@@ -69,6 +71,11 @@ services:
           # um exemplo – distribua como quiser.
           cpus: "0.13"
           memory: "140MB"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 # O uso do modo `bridge` deve ser adequado à carga que será usada no teste.
 # A edição anterior se beneficiou do modo host pois o volume de requisições
