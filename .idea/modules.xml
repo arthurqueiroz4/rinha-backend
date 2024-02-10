@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/rinha.iml" filepath="$PROJECT_DIR$/.idea/rinha.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/rinha-backend.iml" filepath="$PROJECT_DIR$/.idea/rinha-backend.iml" />
     </modules>
   </component>
 </project>

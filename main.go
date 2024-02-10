@@ -71,23 +71,32 @@ type Saldo struct {
 
 func criarTransacao(c echo.Context) error {
 	id := c.Param("id")
-	if idInt, _ := strconv.Atoi(id); idInt > 5 || idInt < 1 {
-		return c.JSON(http.StatusNotFound, nil)
-	}
-
 	transacao := new(Transacao)
-	if err := c.Bind(transacao); err != nil {
-		return c.JSON(http.StatusUnprocessableEntity, nil)
-	}
+	validation := make(chan error)
 
-	if transacao.Tipo != "d" && transacao.Tipo != "c" {
-		return c.JSON(http.StatusUnprocessableEntity, nil)
-	}
+	go func(validation chan error) {
+		if idInt, _ := strconv.Atoi(id); idInt > 5 || idInt < 1 {
+			validation <- c.JSON(http.StatusNotFound, nil)
+			return
+		}
 
-	descLen := len(transacao.Descricao)
-	if descLen < 1 || descLen > 10 {
-		return c.JSON(http.StatusUnprocessableEntity, nil)
-	}
+		if err := c.Bind(transacao); err != nil {
+			validation <- c.JSON(http.StatusUnprocessableEntity, nil)
+			return
+		}
+
+		if transacao.Tipo != "d" && transacao.Tipo != "c" {
+			validation <- c.JSON(http.StatusUnprocessableEntity, nil)
+			return
+		}
+
+		descLen := len(transacao.Descricao)
+		if descLen < 1 || descLen > 10 {
+			validation <- c.JSON(http.StatusUnprocessableEntity, nil)
+			return
+		}
+		validation <- nil
+	}(validation)
 
 	cliente := new(Cliente)
 	err := dbPool.QueryRow(context.Background(), "SELECT * FROM clientes c WHERE id = $1", id).Scan(&cliente.ID, &cliente.Limite, &cliente.Saldo)
@@ -114,9 +123,10 @@ func criarTransacao(c echo.Context) error {
 		transacao.Valor, transacao.Tipo, transacao.Descricao, id, time.Now())
 	batch.Queue("UPDATE clientes SET saldo = $1 WHERE id = $2", novoSaldo, id)
 
-	//cacheMux.Lock()
-	//delete(cache, id)
-	//cacheMux.Unlock()
+	err = <-validation
+	if err != nil {
+		return err
+	}
 
 	br := tx.SendBatch(context.Background(), batch)
 	_, err = br.Exec()
