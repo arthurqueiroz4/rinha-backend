@@ -1,53 +1,50 @@
-package handler
+package main
 
 import (
-	"github.com/arthurqueiroz4/rinha-de-backend/repo"
-	"github.com/arthurqueiroz4/rinha-de-backend/types"
 	"github.com/labstack/echo"
 	"net/http"
 	"strconv"
 )
 
 func CriarTransacao(c echo.Context) error {
-	tr := c.Get("tr").(*repo.TransacaoRepository)
-	cr := c.Get("cr").(*repo.ClienteRepository)
 	id := c.Param("id")
 	if idInt, _ := strconv.Atoi(id); idInt > 5 || idInt < 1 {
 		return c.JSON(404, nil)
 	}
 
-	transacao := &types.Transacao{}
+	transacao := &Transacao{}
+	transacao.ClienteID, _ = strconv.Atoi(id)
 	if err := c.Bind(transacao); err != nil {
 		return c.JSON(http.StatusUnprocessableEntity, nil)
 	}
 
+	novoSaldo := transacao.Valor
 	if transacao.Tipo != "d" && transacao.Tipo != "c" {
 		return c.JSON(http.StatusUnprocessableEntity, nil)
 	} else if transacao.Tipo == "d" {
-		transacao.Valor = -transacao.Valor
+		novoSaldo *= -1
 	}
 
 	if descLen := len(transacao.Descricao); descLen < 1 || descLen > 10 {
 		return c.JSON(http.StatusUnprocessableEntity, nil)
 	}
 
-	cliente, err := cr.GetCliente(id)
+	cliente, err := PegarClienteDB(id)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, "deu erro no GetCliente")
+		return c.JSON(http.StatusInternalServerError, "deu erro no PegarClienteDB")
 	}
 	if (cliente.Saldo + transacao.Valor) < -cliente.Limite {
 		return c.JSON(http.StatusUnprocessableEntity, nil)
 	}
 
-	err = tr.CriarTransacao(*transacao)
+	err = CriarTransacaoDB(*transacao)
 	if err != nil {
 		return err
 	}
-	cliente.Saldo += transacao.Valor
 
 	responseJSON := map[string]interface{}{
 		"limite": cliente.Limite,
-		"saldo":  cliente.Saldo,
+		"saldo":  novoSaldo,
 	}
 	return c.JSON(http.StatusOK, responseJSON)
 }
