@@ -37,10 +37,7 @@ func CriarTransacao(c echo.Context) error {
 		return c.JSON(http.StatusUnprocessableEntity, nil)
 	}
 
-	err = CriarTransacaoDB(*transacao)
-	if err != nil {
-		return err
-	}
+	go CriarTransacaoDB(*transacao)
 
 	responseJSON := map[string]interface{}{
 		"limite": cliente.Limite,

@@ -23,17 +23,8 @@ func PegarUltimasTransacoesDB(idCliente string) ([]Transacao, error) {
 	return transacoes, nil
 }
 
-func CriarTransacaoDB(transacao Transacao) error {
-	var err error
-	_, err = db.Exec(context.Background(), "UPDATE clientes SET saldo = saldo + $1 WHERE id = $2", transacao.Valor, transacao.ClienteID)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(context.Background(), "INSERT INTO transacoes (cliente_id, tipo, valor, descricao, realizado_em) VALUES ($1, $2, $3, $4, $5)",
+func CriarTransacaoDB(transacao Transacao) {
+	db.Exec(context.Background(), "UPDATE clientes SET saldo = saldo + $1 WHERE id = $2", transacao.Valor, transacao.ClienteID)
+	db.Exec(context.Background(), "INSERT INTO transacoes (cliente_id, tipo, valor, descricao, realizado_em) VALUES ($1, $2, $3, $4, $5)",
 		transacao.ClienteID, transacao.Tipo, transacao.Valor, transacao.Descricao, transacao.RealizadoEm)
-	if err != nil {
-		return err
-	}
-
-	return err
 }
