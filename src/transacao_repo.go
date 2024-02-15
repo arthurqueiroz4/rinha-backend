@@ -27,7 +27,7 @@ func CriarTransacaoDB(transacao Transacao) error {
 		return err
 	}
 	var saldo, limite int
-	err = tx.QueryRow(context.Background(), "SELECT saldo, limite FROM clientes WHERE id = $1 FOR UPDATE", transacao.ClienteID).Scan(&saldo, &limite)
+	err = tx.QueryRow(context.Background(), "SELECT saldo, limite FROM clientes WHERE id = $1", transacao.ClienteID).Scan(&saldo, &limite)
 	if err != nil {
 		return err
 	}
