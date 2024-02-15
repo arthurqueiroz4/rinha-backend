@@ -4,6 +4,7 @@ import (
 	"github.com/labstack/echo"
 	"net/http"
 	"strconv"
+	"sync"
 )
 
 func CriarTransacao(c echo.Context) error {
@@ -12,36 +13,30 @@ func CriarTransacao(c echo.Context) error {
 		return c.JSON(404, nil)
 	}
 
-	transacao := &Transacao{}
+	transacao := Transacao{}
 	transacao.ClienteID, _ = strconv.Atoi(id)
-	if err := c.Bind(transacao); err != nil {
+	if err := c.Bind(&transacao); err != nil {
 		return c.JSON(http.StatusUnprocessableEntity, nil)
 	}
 
-	novoSaldo := transacao.Valor
 	if transacao.Tipo != "d" && transacao.Tipo != "c" {
 		return c.JSON(http.StatusUnprocessableEntity, nil)
-	} else if transacao.Tipo == "d" {
-		novoSaldo *= -1
 	}
 
 	if descLen := len(transacao.Descricao); descLen < 1 || descLen > 10 {
 		return c.JSON(http.StatusUnprocessableEntity, nil)
 	}
 
-	cliente, err := PegarClienteDB(id)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, "deu erro no PegarClienteDB")
-	}
-	if (cliente.Saldo + transacao.Valor) < -cliente.Limite {
+	m := sync.Mutex{}
+	m.Lock()
+	if err := CriarTransacaoDB(transacao); err != nil {
 		return c.JSON(http.StatusUnprocessableEntity, nil)
 	}
-
-	go CriarTransacaoDB(*transacao)
-
+	clienteDB, _ := PegarClienteDB(id)
 	responseJSON := map[string]interface{}{
-		"limite": cliente.Limite,
-		"saldo":  novoSaldo,
+		"limite": clienteDB.Limite,
+		"saldo":  clienteDB.Saldo,
 	}
+	m.Unlock()
 	return c.JSON(http.StatusOK, responseJSON)
 }
