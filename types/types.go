@@ -28,16 +28,14 @@ type (
 		ExtractDate time.Time `json:"data_extrato"`
 		Limit       int       `json:"limite"`
 	}
-	CreateTransaction struct {
-		ConsumerID int
-		Balance    int
-		Type       string
+	TransactionRequest struct {
+		Type        string `json:"tipo"`
+		Value       int    `json:"valor"`
+		Description string `json:"descricao"`
+	}
+	TransactionResponse struct {
+		ConsumerID int `json:"id"`
+		Balance    int `json:"saldo"`
+		Limit      int `json:"limite"`
 	}
 )
-
-func (ct *CreateTransaction) NewCreateTransaction(consumerID, balance int, typeTransaction string) *CreateTransaction {
-	if typeTransaction == "d" {
-		return &CreateTransaction{Balance: balance * -1, Type: typeTransaction, ConsumerID: consumerID}
-	}
-	return &CreateTransaction{Balance: balance, Type: typeTransaction, ConsumerID: consumerID}
-}

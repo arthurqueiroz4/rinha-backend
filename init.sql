@@ -1,21 +1,21 @@
-CREATE TABLE clientes (
+CREATE TABLE consumers (
         id SERIAL PRIMARY KEY,
-        limite INTEGER NOT NULL,
-        saldo INTEGER NOT NULL
+        bound INTEGER NOT NULL,
+        balance INTEGER NOT NULL
 );
 
-CREATE TABLE transacoes (
+CREATE TABLE transactions (
         id SERIAL PRIMARY KEY,
-        cliente_id INTEGER NOT NULL,
-        tipo VARCHAR(1) NOT NULL,
-        valor INTEGER NOT NULL,
-        descricao VARCHAR(10) NOT NULL,
-        realizado_em TIMESTAMP NOT NULL DEFAULT NOW()
+        consumer_id INTEGER NOT NULL,
+        type VARCHAR(1) NOT NULL,
+        value INTEGER NOT NULL,
+        description VARCHAR(10) NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 DO $$
 BEGIN
-INSERT INTO clientes (limite, saldo)
+INSERT INTO consumers (bound, balance)
 VALUES
     (1000 * 100, 0),
     (800 * 100, 0),
