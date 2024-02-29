@@ -2,10 +2,8 @@ package impl
 
 import (
 	"context"
-	"errors"
 	"github.com/arthurqueiroz4/rinha-de-backend/types"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"math"
 )
 
 type Postgres struct{}
@@ -32,30 +30,10 @@ func (p Postgres) GetConsumer(id int) (*types.Consumer, error) {
 }
 
 func (p Postgres) CreateTransationAndUpdateConsumer(t *types.Transaction) (*types.TransactionResponse, error) {
-	tx, _ := db.Begin(context.Background())
-	defer tx.Rollback(context.Background())
-	row := tx.QueryRow(context.Background(), "SELECT id, balance, bound FROM consumers WHERE id = $1 FOR UPDATE", t.ConsumerID)
-	c := &types.Consumer{}
-	err := row.Scan(&c.ID, &c.Balance, &c.Limit)
-	if err != nil {
-		return nil, err
-	}
-	if t.Type == "d" && float64(c.Limit) < math.Abs(float64(c.Balance-t.Value)) {
-		return nil, errors.New("limit exceeded")
-	}
-
-	tx.Exec(context.Background(),
-		`INSERT INTO transactions (consumer_id, type, value, description, created_at) 
-			 VALUES ($1, $2, $3, $4, $5)`, t.ConsumerID, t.Type, t.Value, t.Description, t.CreatedAt)
-	if t.Type == "d" {
-		tx.Exec(context.Background(), `UPDATE consumers SET balance = balance - $1 WHERE id = $2`, t.Value, t.ConsumerID)
-		tx.Commit(context.Background())
-		return &types.TransactionResponse{ConsumerID: t.ConsumerID, Balance: c.Balance - t.Value, Limit: c.Limit}, nil
-	} else {
-		tx.Exec(context.Background(), `UPDATE consumers SET balance = balance + $1 WHERE id = $2`, t.Value, t.ConsumerID)
-		tx.Commit(context.Background())
-		return &types.TransactionResponse{ConsumerID: t.ConsumerID, Balance: c.Balance + t.Value, Limit: c.Limit}, nil
-	}
+	row := db.QueryRow(context.Background(), "SELECT * FROM create_transaction_and_update_consumer($1, $2, $3, $4)", t.ConsumerID, t.Type, t.Value, t.Description)
+	tr := &types.TransactionResponse{}
+	err := row.Scan(&tr.Balance, &tr.Limit)
+	return tr, err
 }
 
 func (p *Postgres) GetExtract(id int) (*types.Extract, error) {
