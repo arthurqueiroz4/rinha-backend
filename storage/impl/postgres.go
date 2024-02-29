@@ -19,17 +19,7 @@ func NewPostgres(dsn string) *Postgres {
 	return &Postgres{}
 }
 
-func (p Postgres) GetConsumer(id int) (*types.Consumer, error) {
-	row := db.QueryRow(context.Background(), "SELECT id, balance, bound FROM consumers WHERE id = $1")
-	consumer := &types.Consumer{}
-	err := row.Scan(&consumer.ID, &consumer.Balance, &consumer.Limit)
-	if err != nil {
-		return nil, err
-	}
-	return consumer, nil
-}
-
-func (p Postgres) CreateTransationAndUpdateConsumer(t *types.Transaction) (*types.TransactionResponse, error) {
+func (p *Postgres) CreateTransationAndUpdateConsumer(t *types.Transaction) (*types.TransactionResponse, error) {
 	row := db.QueryRow(context.Background(), "SELECT * FROM create_transaction_and_update_consumer($1, $2, $3, $4)", t.ConsumerID, t.Type, t.Value, t.Description)
 	tr := &types.TransactionResponse{}
 	err := row.Scan(&tr.Balance, &tr.Limit)

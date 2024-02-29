@@ -28,11 +28,6 @@ type (
 		ExtractDate time.Time `json:"data_extrato"`
 		Limit       int       `json:"limite"`
 	}
-	TransactionRequest struct {
-		Type        string `json:"tipo"`
-		Value       int    `json:"valor"`
-		Description string `json:"descricao"`
-	}
 	TransactionResponse struct {
 		ConsumerID int `json:"id"`
 		Balance    int `json:"saldo"`

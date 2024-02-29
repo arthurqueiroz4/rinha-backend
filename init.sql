@@ -22,23 +22,23 @@ CREATE OR REPLACE FUNCTION create_transaction_and_update_consumer(
 LANGUAGE plpgsql
 AS $$
 DECLARE
-v_balance INT;
+    v_balance INT;
     v_bound INT;
 BEGIN
-SELECT c.balance, c.bound into v_balance, v_bound FROM consumers c  WHERE id = fn_consumer_id FOR UPDATE;
+    SELECT c.balance, c.bound into v_balance, v_bound FROM consumers c  WHERE id = fn_consumer_id FOR UPDATE;
 
-IF fn_type = 'd' AND v_balance - fn_value < -v_bound THEN
-        RAISE EXCEPTION 'Limite excedido';
-END IF;
+    IF fn_type = 'd' AND v_balance - fn_value < -v_bound THEN
+            RAISE EXCEPTION 'Limite excedido';
+    END IF;
 
-INSERT INTO transactions (consumer_id, "type", value, description, created_at)
-VALUES (fn_consumer_id, fn_type, fn_value, fn_description, now());
+    INSERT INTO transactions (consumer_id, "type", value, description, created_at)
+    VALUES (fn_consumer_id, fn_type, fn_value, fn_description, now());
 
-UPDATE consumers
-SET balance = CASE WHEN fn_type= 'd' THEN v_balance - fn_value ELSE v_balance + fn_value END
-WHERE id = fn_consumer_id;
+    UPDATE consumers
+    SET balance = CASE WHEN fn_type= 'd' THEN v_balance - fn_value ELSE v_balance + fn_value END
+    WHERE id = fn_consumer_id;
 
-RETURN QUERY select c.balance, c.bound FROM consumers c  WHERE id = fn_consumer_id;
+    RETURN QUERY select c.balance, c.bound FROM consumers c  WHERE id = fn_consumer_id;
 END;
 $$;
 

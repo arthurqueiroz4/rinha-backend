@@ -8,11 +8,9 @@ services:
     container_name: api01
     build: .
     hostname: api01
-    ports:
-      - "8081:8081"
     environment:
       - DATABASE_URL=postgres://postgres:postgres@localhost:5432/rinha
-      - APP_PORT=:8081
+      - APP_PORT=:8889
     depends_on:
       db:
         condition: service_healthy
@@ -27,11 +25,9 @@ services:
     <<: *api
     container_name: api02
     hostname: api02
-    ports:
-      - "8082:8082"
     environment:
       - DATABASE_URL=postgres://postgres:postgres@localhost:5432/rinha
-      - APP_PORT=:8082
+      - APP_PORT=:8888
 
   nginx:
     image: nginx:latest
@@ -41,8 +37,6 @@ services:
     depends_on:
       - api01
       - api02
-    ports:
-      - "9999:9999"
     deploy:
       resources:
         limits:
@@ -72,3 +66,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+volumes:
+  rinha-v:
