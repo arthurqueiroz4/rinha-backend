@@ -2,9 +2,7 @@ FROM golang
 
 WORKDIR /app
 
-COPY /src .
-COPY go.mod .
-COPY go.sum .
+COPY . .
 
 RUN go mod tidy
 
